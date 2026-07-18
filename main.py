@@ -41,8 +41,14 @@ def load_seen_ids() -> set[str]:
         return set()
 
 
-def save_seen_ids(ids: set[str], keep_last: int = 10000) -> None:
-    SEEN_PATH.parent.mkdir(parents=True, exist_ok=True)
+def save_seen_ids(
+    ids: set[str],
+    keep_last: int = 15000,
+) -> None:
+    SEEN_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
     trimmed = sorted(ids)[-keep_last:]
     SEEN_PATH.write_text(
         json.dumps(
@@ -57,7 +63,8 @@ def save_seen_ids(ids: set[str], keep_last: int = 10000) -> None:
 
 def main() -> int:
     print(
-        "[INFO] Starting AI & Technology Digest V2...",
+        "[INFO] Starting AI & Technology Digest V3 "
+        "(official-first)...",
         flush=True,
     )
 
@@ -69,23 +76,25 @@ def main() -> int:
         "GEMINI_MODEL",
         "gemini-3.1-flash-lite",
     ).strip()
+
     lookback_hours = int(
-        os.getenv("LOOKBACK_HOURS", "42")
+        os.getenv("LOOKBACK_HOURS", "48")
     )
     max_items_for_ai = int(
-        os.getenv("MAX_ITEMS_FOR_AI", "32")
+        os.getenv("MAX_ITEMS_FOR_AI", "36")
     )
     max_summary_items = int(
         os.getenv("MAX_SUMMARY_ITEMS", "15")
     )
     gemini_timeout = int(
-        os.getenv("GEMINI_TIMEOUT_SECONDS", "120")
+        os.getenv("GEMINI_TIMEOUT_SECONDS", "150")
     )
 
     started = time.time()
     collected = collect_news(
         lookback_hours=lookback_hours
     )
+
     print(
         f"[INFO] Collection completed in "
         f"{time.time() - started:.2f} seconds.",
@@ -112,9 +121,22 @@ def main() -> int:
         )
         return 0
 
+    tier_counts = Counter(
+        item.trust_tier for item in fresh_items
+    )
     category_counts = Counter(
         item.category for item in fresh_items
     )
+
+    print(
+        "[INFO] Fresh trust tiers: "
+        + ", ".join(
+            f"{name}={count}"
+            for name, count in tier_counts.most_common()
+        ),
+        flush=True,
+    )
+
     print(
         "[INFO] Fresh categories: "
         + ", ".join(
@@ -127,12 +149,18 @@ def main() -> int:
     candidates = select_candidates(
         fresh_items,
         max_total=max_items_for_ai,
-        max_per_category=6,
-        max_per_source=4,
     )
+
+    candidate_tiers = Counter(
+        item.trust_tier for item in candidates
+    )
+
     print(
-        f"[INFO] Selected {len(candidates)} "
-        f"candidates for Gemini.",
+        f"[INFO] Selected {len(candidates)} candidates: "
+        + ", ".join(
+            f"{tier}={count}"
+            for tier, count in candidate_tiers.most_common()
+        ),
         flush=True,
     )
 
@@ -145,7 +173,7 @@ def main() -> int:
             max_summary_items=max_summary_items,
         )
         print(
-            "[INFO] AI summary completed.",
+            "[INFO] Official-first AI summary completed.",
             flush=True,
         )
     except Exception as exc:
@@ -160,8 +188,7 @@ def main() -> int:
         )
 
     print(
-        f"[INFO] Digest length: "
-        f"{len(digest)} characters.",
+        f"[INFO] Digest length: {len(digest)} characters.",
         flush=True,
     )
     print(
@@ -175,6 +202,8 @@ def main() -> int:
         text=digest,
     )
 
+    # Mark the full daily set as processed so low-ranked stories do not return
+    # repeatedly on later days.
     seen_ids.update(
         item.item_id for item in fresh_items
     )

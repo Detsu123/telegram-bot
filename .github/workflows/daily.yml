@@ -1,4 +1,4 @@
-name: Daily AI Tech Digest
+name: Daily AI Tech Official Digest
 
 on:
   workflow_dispatch:
@@ -12,13 +12,13 @@ permissions:
   contents: write
 
 concurrency:
-  group: daily-ai-tech-digest
+  group: daily-ai-tech-official-digest
   cancel-in-progress: false
 
 jobs:
   send-digest:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout repository
@@ -35,7 +35,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Collect, summarize and send
+      - name: Collect, verify, summarize and send
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -43,9 +43,9 @@ jobs:
           GITHUB_API_TOKEN: ${{ github.token }}
 
           GEMINI_MODEL: gemini-3.1-flash-lite
-          GEMINI_TIMEOUT_SECONDS: "120"
-          LOOKBACK_HOURS: "42"
-          MAX_ITEMS_FOR_AI: "32"
+          GEMINI_TIMEOUT_SECONDS: "150"
+          LOOKBACK_HOURS: "48"
+          MAX_ITEMS_FOR_AI: "36"
           MAX_SUMMARY_ITEMS: "15"
 
         run: python -u main.py
@@ -62,5 +62,5 @@ jobs:
             "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add data/seen_items.json
-          git commit -m "chore: update processed news state"
+          git commit -m "chore: update V3 processed news state"
           git push

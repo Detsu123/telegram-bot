@@ -15,65 +15,97 @@ from collector import NewsItem
 ULAANBAATAR = ZoneInfo("Asia/Ulaanbaatar")
 
 
-def _build_prompt(items: list[NewsItem], max_summary_items: int) -> str:
+def _build_prompt(
+    items: list[NewsItem],
+    max_summary_items: int,
+) -> str:
     source_text = "\n\n".join(
         (
             f"[{index}]\n"
             f"TITLE: {item.title}\n"
             f"CATEGORY: {item.category}\n"
             f"SOURCE: {item.source}\n"
+            f"SOURCE_HOME: {item.source_home}\n"
+            f"TRUST_TIER: {item.trust_tier}\n"
+            f"STATUS: {item.status_label}\n"
             f"PUBLISHED: {item.published_at}\n"
             f"IMPORTANCE_SCORE: {item.score}\n"
-            f"DESCRIPTION: {item.summary[:500]}\n"
-            f"URL: {item.url}"
+            f"DESCRIPTION: {item.summary[:650]}\n"
+            f"ARTICLE_URL: {item.url}"
         )
         for index, item in enumerate(items, start=1)
     )
 
     today = datetime.now(ULAANBAATAR).strftime("%Y-%m-%d")
+    official_available = sum(
+        1 for item in items if item.trust_tier == "official"
+    )
 
     return f"""
-Чи AI болон өргөн хүрээний технологийн мэдээний Монгол хэлний редактор.
+Чи AI болон технологийн мэдээний Монгол хэлний редактор.
+Энэ digest-ийн гол зарчим нь OFFICIAL-FIRST.
 
-Доорх нэр дэвшигч мэдээллүүдээс хамгийн чухал бөгөөд сонирхолтой
-{max_summary_items}-аас ихгүй мэдээг сонгож өдөр тутмын Telegram digest бэлтгэ.
+Доорх {len(items)} нэр дэвшигчээс хамгийн ихдээ
+{max_summary_items} үнэхээр хэрэгтэй мэдээллийг сонго.
+Нэр дэвшигчдийн {official_available} нь албан ёсны эх сурвалжтай.
 
-Хамруулах ангилал:
-- AI модель ба судалгаа
-- Software болон open-source
-- Cybersecurity
-- Cloud ба developer tools
-- Chip, hardware, computer
-- Robotics
-- Space ба science
-- Consumer technology
-- Startup ба technology business
+ЭХ СУРВАЛЖИЙН ЭРЭМБЭ:
+1. official — компанийн/лабораторийн өөрийн зарлал
+2. research — arXiv зэрэг анхдагч судалгааны эх сурвалж
+3. media — хөндлөнгийн нэр хүндтэй технологийн хэвлэл
+4. community — зөвхөн шинэ сэдэв илрүүлэх signal; баталгаа биш
 
-ДҮРЭМ:
-1. Зөвхөн өгөгдсөн мэдээлэлд тулгуурла. Баримт зохиож болохгүй.
-2. Нэг үйл явдлын давхардсан нийтлэлүүдийг нэг мэдээ болго.
-3. Зөвхөн нэг ангиллаар дүүргэхгүй; боломжтой үед олон ангиллыг хамруул.
-4. Маркетингийн хэтрүүлэг, clickbait гарчгийг энгийн болго.
-5. Мэдээлэл бүрийг дараах богино хэлбэрээр бич:
-   №. Гарчиг
-   Юу болсон: 1–2 өгүүлбэр
-   Яагаад сонирхолтой: 1 өгүүлбэр
-   Хэнд хэрэгтэй: товч
-   Эх сурвалж: URL
-6. Open-source, код, API, model weights, benchmark-ийн тухай зөвхөн эх
-   мэдээлэлд байгаа үед дурд.
-7. Баталгаагүй мэдээллийг сонгохгүй; зайлшгүй сонговол
-   "баталгаажаагүй" гэж тэмдэглэ.
-8. Telegram Markdown ашиглахгүй. Энгийн текст хэрэглэ.
-9. Нийт хариу 7000 тэмдэгтээс хэтрэхгүй.
-10. Эхэнд:
-🤖 AI & Tech Daily — {today}
-гэсэн гарчиг тавь.
-11. Дараа нь "🔥 Өдрийн онцлох 3" хэсэг гарга.
-12. Үлдсэн мэдээг ангиллын нэрээр бүлэглэ.
-13. Төгсгөлд:
-"📌 Өнөөдрийн чиг хандлага"
-гэсэн 4–7 түлхүүр сэдэв гарга.
+СОНГОЛТЫН ДҮРЭМ:
+1. Албан ёсны шинэ model, product, API, SDK, research, open-source,
+   model weights, benchmark, infrastructure release-ийг хамгийн түрүүнд сонго.
+2. Албан ёсны мэдээлэл хангалттай байвал дор хаяж 8-ыг official
+   эх сурвалжаас сонго.
+3. Office нээсэн, хүн томилсон, funding, partnership, customer story,
+   webinar, merch зэрэг технологийн бодит шинэчлэлгүй мэдээллийг бүү сонго.
+4. Нэг үйл явдлын official болон media хувилбар байвал official-ийг үндсэн
+   эх сурвалж болго. Media эх сурвалжийг зөвхөн хөндлөнгийн контекст болгон
+   ашигла.
+5. Community мэдээллийг official/research/media баталгаагүй бол
+   "баталгаажаагүй community signal" гэж тодорхой тэмдэглэ эсвэл хас.
+6. Компанийн өөрийн benchmark, "хамгийн сайн", "хамгийн хурдан" гэх
+   claims-ийг баримт мэт баталгаажуулж болохгүй. "Компанийн өөрийн
+   мэдээллээр" гэж тодруул.
+7. Эх мэдээлэлд model weights, API, код, лиценз, benchmark байгаа эсэх нь
+   тодорхой биш бол зохиож болохгүй.
+8. Давхардсан үйл явдлыг нэг мэдээ болго.
+9. Clickbait гарчгийг тайван, бодит гарчиг болго.
+10. Монгол хэлээр ойлгомжтой, товч, мэргэжлийн бич.
+11. Telegram Markdown ашиглахгүй. Энгийн текст хэрэглэ.
+12. Нийт хариу 7600 тэмдэгтээс хэтрэхгүй.
+
+МЭДЭЭ БҮРИЙН ХЭЛБЭР:
+№. Гарчиг
+Статус: өгөгдсөн STATUS-г яг хэрэглэ
+Юу болсон: 1–2 өгүүлбэр
+Яагаад чухал: 1 өгүүлбэр
+Бодит хэрэглээ: 1 өгүүлбэр
+Баталгааны тайлбар: official бол компанийн өөрийн claim эсэхийг ялга
+Эх сурвалж: ARTICLE_URL
+
+ГАРАЛТЫН БҮТЭЦ:
+🤖 AI & Tech Official Daily — {today}
+
+🔥 Өдрийн онцлох 3
+...
+
+🏢 Албан ёсны шинэчлэлтүүд
+...
+
+🧪 Судалгаа ба open-source
+...
+
+📰 Хөндлөнгийн чухал контекст
+...
+
+📌 Өнөөдрийн чиг хандлага
+• 4–7 түлхүүр сэдэв
+
+Эх сурвалжгүй ерөнхий дүгнэлт бүү нэм.
 
 НЭР ДЭВШИГЧ МЭДЭЭЛЭЛ:
 
@@ -100,25 +132,33 @@ def _create_session() -> requests.Session:
 def _extract_text(payload: dict) -> str:
     candidates = payload.get("candidates", [])
     if not candidates:
-        raise RuntimeError(f"Gemini returned no candidates: {payload}")
+        raise RuntimeError(
+            f"Gemini returned no candidates: {payload}"
+        )
 
     parts = candidates[0].get("content", {}).get("parts", [])
-    result = "\n".join(
+    text_parts = [
         str(part.get("text", "")).strip()
         for part in parts
         if part.get("text")
-    ).strip()
+    ]
+    result = "\n".join(text_parts).strip()
 
     if not result:
-        finish_reason = candidates[0].get("finishReason", "UNKNOWN")
+        finish_reason = candidates[0].get(
+            "finishReason",
+            "UNKNOWN",
+        )
         raise RuntimeError(
-            f"Gemini returned no text. Finish reason: {finish_reason}"
+            f"Gemini returned no text. "
+            f"Finish reason: {finish_reason}"
         )
 
     return result
 
 
 def _request_gemini(
+    *,
     session: requests.Session,
     url: str,
     api_key: str,
@@ -126,13 +166,14 @@ def _request_gemini(
     timeout_seconds: int,
     include_thinking: bool,
 ) -> requests.Response:
-    generation_config = {
-        "maxOutputTokens": 2400,
-        "temperature": 0.2,
+    generation_config: dict = {
+        "maxOutputTokens": 2800,
+        "temperature": 0.15,
     }
+
     if include_thinking:
         generation_config["thinkingConfig"] = {
-            "thinkingLevel": "minimal"
+            "thinkingLevel": "minimal",
         }
 
     return session.post(
@@ -159,19 +200,30 @@ def summarize_with_gemini(
     items: list[NewsItem],
     api_key: str,
     model: str,
-    timeout_seconds: int = 120,
+    timeout_seconds: int = 150,
     max_summary_items: int = 15,
 ) -> str:
-    prompt = _build_prompt(items, max_summary_items)
+    prompt = _build_prompt(
+        items,
+        max_summary_items,
+    )
     url = (
         "https://generativelanguage.googleapis.com/"
         f"v1beta/models/{model}:generateContent"
     )
 
+    tier_counts = Counter(item.trust_tier for item in items)
+
     print(
-        f"[INFO] Gemini request: {model}, candidates: {len(items)}",
+        f"[INFO] Gemini request: model={model}, "
+        f"candidates={len(items)}, "
+        f"official={tier_counts.get('official', 0)}, "
+        f"research={tier_counts.get('research', 0)}, "
+        f"media={tier_counts.get('media', 0)}, "
+        f"community={tier_counts.get('community', 0)}",
         flush=True,
     )
+
     started = time.time()
 
     with _create_session() as session:
@@ -202,7 +254,8 @@ def summarize_with_gemini(
             )
 
     print(
-        f"[INFO] Gemini responded in {time.time() - started:.2f} seconds.",
+        f"[INFO] Gemini responded in "
+        f"{time.time() - started:.2f} seconds.",
         flush=True,
     )
 
@@ -210,8 +263,9 @@ def summarize_with_gemini(
         payload = response.json()
     except ValueError as exc:
         raise RuntimeError(
-            f"Gemini returned invalid JSON. HTTP "
-            f"{response.status_code}: {response.text[:500]}"
+            f"Gemini returned invalid JSON. "
+            f"HTTP {response.status_code}: "
+            f"{response.text[:500]}"
         ) from exc
 
     if response.status_code != 200:
@@ -226,42 +280,55 @@ def fallback_summary(
     items: list[NewsItem],
     max_summary_items: int = 15,
 ) -> str:
-    today = datetime.now(ULAANBAATAR).strftime("%Y-%m-%d")
+    today = datetime.now(
+        ULAANBAATAR
+    ).strftime("%Y-%m-%d")
+
     selected = items[:max_summary_items]
-    category_counts = Counter(item.category for item in selected)
-
-    lines = [
-        f"🤖 AI & Tech Daily — {today}",
-        "",
-        "AI хураангуй түр үүсээгүй тул сонгогдсон технологийн мэдээнүүд:",
-    ]
-
-    current_category = None
-    index = 0
+    groups = {
+        "official": [],
+        "research": [],
+        "media": [],
+        "community": [],
+    }
 
     for item in selected:
-        if item.category != current_category:
-            current_category = item.category
-            lines.extend(["", f"📂 {current_category}"])
+        groups.setdefault(item.trust_tier, []).append(item)
 
-        index += 1
-        lines.extend(
-            [
-                "",
-                f"{index}. {item.title}",
-                f"Эх сурвалж: {item.source}",
-                item.url,
-            ]
-        )
+    lines = [
+        f"🤖 AI & Tech Official Daily — {today}",
+        "",
+        (
+            "AI хураангуй түр үүсээгүй тул "
+            "official-first сонголтын эх сурвалжууд:"
+        ),
+    ]
 
-    lines.extend(
-        [
-            "",
-            "Ангиллын хамрах хүрээ: "
-            + ", ".join(
-                f"{name} ({count})"
-                for name, count in category_counts.items()
-            ),
-        ]
-    )
+    labels = {
+        "official": "🏢 Албан ёсны эх сурвалж",
+        "research": "🧪 Судалгааны эх сурвалж",
+        "media": "📰 Хөндлөнгийн технологийн хэвлэл",
+        "community": "💬 Community signal",
+    }
+
+    index = 0
+    for tier in ("official", "research", "media", "community"):
+        tier_items = groups.get(tier, [])
+        if not tier_items:
+            continue
+
+        lines.extend(["", labels[tier]])
+
+        for item in tier_items:
+            index += 1
+            lines.extend(
+                [
+                    "",
+                    f"{index}. {item.title}",
+                    f"Статус: {item.status_label}",
+                    f"Эх сурвалж: {item.source}",
+                    item.url,
+                ]
+            )
+
     return "\n".join(lines)
