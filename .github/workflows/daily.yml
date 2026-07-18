@@ -1,0 +1,57 @@
+name: Daily AI Tech Digest
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Runs daily at 19:17 in Mongolia time.
+    # Minute 17 avoids the busiest start-of-hour period.
+    - cron: "17 19 * * *"
+      timezone: "Asia/Ulaanbaatar"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-ai-tech-digest
+  cancel-in-progress: false
+
+jobs:
+  send-digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Collect, summarize, and send
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-3.5-flash
+          LOOKBACK_HOURS: "36"
+          MAX_ITEMS_FOR_AI: "18"
+        run: python main.py
+
+      - name: Save duplicate-prevention state
+        run: |
+          if git diff --quiet -- data/seen_items.json; then
+            echo "No state changes."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/seen_items.json
+          git commit -m "chore: update seen news state"
+          git push
